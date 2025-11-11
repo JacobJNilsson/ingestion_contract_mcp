@@ -67,21 +67,34 @@ Follow this strict format for all commit messages:
 
 ### Body (separated by blank line from subject)
 
-The body should contain two separate paragraphs:
+**IMPORTANT**: Make the commit body length proportional to the change size:
 
-1. **First paragraph - The WHY**: Explain the motivation, problem, or context
-   - Why is this change necessary?
-   - What problem does it solve?
-   - What was the situation before?
+- **Small changes** (removing unused code, fixing typos, minor refactors): 1-2 sentences explaining why
+- **Medium changes** (new feature, significant refactor): 1-2 short paragraphs
+- **Large changes** (major features, architectural changes): Full detailed explanation
 
-2. **Second paragraph - The WHAT**: Describe what was changed at a general level
-   - What does this change introduce?
-   - What is the new behavior or capability?
-   - Keep it general, not specific implementation details
+For non-trivial changes, the body should explain:
+
+1. **The WHY**: The motivation, problem, or context (1-3 sentences for small changes, a paragraph for larger ones)
+2. **The WHAT** (optional for small changes): What was changed at a general level
 
 **Do NOT include "the HOW"** - the implementation details should be clear from reading the code itself.
 
-### Example Commit Message
+**Examples of appropriate length:**
+
+Small change:
+
+```md
+Remove unused pandas dependency
+
+The pandas import was never used - the contract generator uses the standard library csv module.
+
+This removes the pandas library from the project.
+```
+
+Large change: (see example below)
+
+### Example Commit Message (Large Change)
 
 ```md
 Add MCP server for data ingestion contract generation
