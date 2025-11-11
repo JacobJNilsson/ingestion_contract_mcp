@@ -1,0 +1,161 @@
+---
+description: Ingestion Contract MCP Server
+globs:
+alwaysApply: true
+---
+# Project Overview
+
+This is an MCP (Model Context Protocol) server that generates and manages data ingestion contracts. The server provides tools for:
+
+- Analyzing data sources and generating source contracts
+- Defining data destinations with validation rules
+- Creating transformation contracts that map source to destination with enrichment rules
+
+The project follows a clean, layered architecture with clear separation of concerns.
+
+# Project Structure
+
+## Core Application (`mcp_server/`)
+
+The MCP server application consists of four main modules:
+
+### `server.py`
+
+The main application entry point that:
+
+- Defines MCP tools using `@mcp.server.Server.list_tools()` and `@mcp.server.Server.call_tool()` decorators
+- Routes tool calls to appropriate handlers via a dispatch dictionary
+- Handles errors and returns structured JSON responses
+- Runs via `uv run mcp_server/server.py`
+
+**Key Pattern**: Tool dispatch using a dictionary instead of elif chains:
+
+```python
+handlers = {
+    "generate_source_contract": handler.generate_source_contract,
+    "generate_destination_contract": handler.generate_destination_contract,
+    # ... etc
+}
+handler_func = handlers.get(name)
+```
+
+### `contract_handler.py`
+
+The business logic layer that:
+
+- Orchestrates contract generation by calling the generator
+- Handles contract validation using Pydantic models
+- Loads and saves contracts as JSON files
+- Returns structured JSON strings or Pydantic models
+
+This module acts as the interface between the server and the low-level generation logic.
+
+### `contract_generator.py`
+
+The contract generation layer that:
+
+- Analyzes source files (CSV, JSON, etc.) to extract schema and quality metrics
+- Constructs Pydantic models for source, destination, and transformation contracts
+- Performs file inspection (encoding, format, delimiters)
+- Returns fully validated Pydantic model instances
+
+### `models.py`
+
+Defines all Pydantic models for:
+
+- **SourceContract**: Describes data sources with schema, format, encoding, and quality metrics
+- **DestinationContract**: Defines target schema, validation rules, and constraints
+- **TransformationContract**: Maps source to destination with field mappings, transformations, and business rules
+
+All models use:
+
+- Type hints with Python 3.13+ syntax (`list[str]`, not `List[str]`)
+- `Field()` with descriptions and constraints
+- `Literal` types for contract_type fields
+- Aliases where needed (e.g., `alias="schema"` with `populate_by_name=True`)
+
+### `config.py`
+
+Configuration constants (currently minimal).
+
+## Testing (`tests/`)
+
+Tests are organized outside the main package for clean separation:
+
+- `conftest.py`: Shared pytest fixtures (sample CSV, contracts)
+- `test_server.py`: Server-level integration tests
+- `test_contract_handler.py`: Business logic unit tests
+- `test_contract_generator.py`: Generator unit tests
+- `fixtures/`: Sample data files for testing
+
+## Build & Dependency Management
+
+- **`pyproject.toml`**: Defines project metadata, dependencies, and tool configuration
+  - Uses Hatchling as the build backend
+  - Configures Ruff (linting/formatting), mypy (type checking), and pytest
+  - Includes mypy overrides for Pydantic models to suppress false positives
+- **`Makefile`**: Provides common development commands
+  - `make lint`: Run Ruff linter
+  - `make format`: Format code with Ruff
+  - `make mypy`: Run type checking
+  - `make test`: Run test suite
+  - `make check`: Run all checks (lint, format-check, mypy)
+- **`uv.lock`**: Lockfile for reproducible dependency resolution
+
+# Architecture Principles
+
+## Stateless Server Design
+
+- The server does not maintain state between calls
+- All operations use absolute paths provided by the client
+- No global PROJECT_ROOT or similar configuration
+
+## Absolute Imports
+
+- Always use absolute imports: `from mcp_server.models import SourceContract`
+- Never use relative imports: `from .models import SourceContract`
+- This ensures the code works both as a package and when running scripts directly
+
+## JSON Returns
+
+- All contract tools return JSON strings (via Pydantic's `.model_dump_json(by_alias=True)`)
+- Error responses are also structured JSON with "error" keys
+- Clients are responsible for file management and persistence
+
+## Type Safety with Pydantic
+
+- All data structures are Pydantic models with full validation
+- Runtime validation happens automatically on model construction
+- Serialization/deserialization is handled by Pydantic methods
+- Aliases allow Python-friendly names (e.g., `data_schema`) while serializing to standard names (e.g., `schema`)
+
+## Three-Contract Architecture
+
+1. **Source Contracts**: Describe data sources
+   - Auto-analyzed from files (CSV, JSON, etc.)
+   - Include schema, format, encoding, quality metrics
+
+2. **Destination Contracts**: Define data targets
+   - Specify schema, types, constraints
+   - Include validation rules and requirements
+
+3. **Transformation Contracts**: Map source → destination
+   - Reference source_ref and destination_ref
+   - Define field mappings, transformations, enrichment rules
+   - Specify execution plan (batch size, error handling, etc.)
+
+# Development Workflow
+
+1. Make changes to code
+2. Run `make check` to verify linting, formatting, and types
+3. Run `make test` to ensure all tests pass
+4. Fix any issues before committing
+
+# Important Conventions
+
+- **Never use relative imports** - always use absolute imports from `mcp_server`
+- **Always include type hints** - use Python 3.13+ native types (`list`, `dict`, etc.)
+- **Return structured JSON** - all contract operations return JSON strings
+- **Require absolute paths** - all file operations must use absolute paths
+- **Use Pydantic for data** - all contracts and schemas are Pydantic models
+- **Test everything** - maintain high test coverage for business logic
