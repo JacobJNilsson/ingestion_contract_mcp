@@ -505,3 +505,234 @@ def list_database_tables(
 
     finally:
         engine.dispose()
+
+
+def detect_foreign_keys(
+    connection_string: str,
+    database_type: str,
+    table_name: str,
+    schema: str | None = None,
+) -> dict[str, Any]:
+    """
+    Detect foreign key relationships for a table.
+
+    Args:
+        connection_string: Database connection string
+        database_type: Database type (postgresql, mysql, sqlite)
+        table_name: Table name to analyze
+        schema: Database schema name (optional)
+
+    Returns:
+        Dictionary with foreign_keys and referenced_by lists
+    """
+    engine = create_database_engine(connection_string, database_type)
+
+    try:
+        inspector = inspect(engine)
+
+        # For PostgreSQL, default to 'public' schema if not specified
+        if database_type == "postgresql" and schema is None:
+            schema = "public"
+
+        relationships: dict[str, Any] = {
+            "foreign_keys": [],
+            "referenced_by": [],
+        }
+
+        # Get foreign keys from this table to other tables
+        try:
+            fks = inspector.get_foreign_keys(table_name, schema=schema)
+            for fk in fks:
+                relationships["foreign_keys"].append(
+                    {
+                        "constraint_name": fk.get("name"),
+                        "columns": fk.get("constrained_columns", []),
+                        "referred_table": fk.get("referred_table"),
+                        "referred_columns": fk.get("referred_columns", []),
+                        "referred_schema": fk.get("referred_schema"),
+                    }
+                )
+        except Exception:
+            # Some databases may not support FK inspection
+            pass
+
+        # Get tables that reference this table
+        try:
+            all_tables = inspector.get_table_names(schema=schema)
+            for other_table in all_tables:
+                if other_table == table_name:
+                    continue
+                try:
+                    other_fks = inspector.get_foreign_keys(other_table, schema=schema)
+                    for fk in other_fks:
+                        if fk.get("referred_table") == table_name:
+                            relationships["referenced_by"].append(
+                                {
+                                    "constraint_name": fk.get("name"),
+                                    "table": other_table,
+                                    "columns": fk.get("constrained_columns", []),
+                                    "referred_columns": fk.get("referred_columns", []),
+                                }
+                            )
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+        return relationships
+
+    finally:
+        engine.dispose()
+
+
+def calculate_load_order(table_dependencies: dict[str, list[str]]) -> tuple[list[str], dict[str, int]]:
+    """
+    Calculate the load order for tables based on foreign key dependencies.
+    Uses topological sort to determine safe load order.
+
+    Args:
+        table_dependencies: Dict mapping table names to list of tables they depend on
+
+    Returns:
+        Tuple of (sorted table list, load_order dict with levels)
+    """
+    # Build in-degree count (how many dependencies each table has)
+    in_degree = {table: len(deps) for table, deps in table_dependencies.items()}
+
+    # Topological sort using Kahn's algorithm
+    queue = [table for table, degree in in_degree.items() if degree == 0]
+    sorted_tables = []
+    load_order_levels: dict[str, int] = {}
+    level = 1
+
+    while queue:
+        # Process all tables at the current level
+        current_level_tables = sorted(queue)  # Sort for consistent ordering
+        queue = []
+
+        for table in current_level_tables:
+            sorted_tables.append(table)
+            load_order_levels[table] = level
+
+            # Reduce in-degree for tables that depend on this table
+            for dep_table, deps in table_dependencies.items():
+                if table in deps:
+                    in_degree[dep_table] -= 1
+                    if in_degree[dep_table] == 0:
+                        queue.append(dep_table)
+
+        level += 1
+
+    # Check for circular dependencies
+    if len(sorted_tables) < len(table_dependencies):
+        # Some tables weren't included - circular dependency detected
+        missing = set(table_dependencies.keys()) - set(sorted_tables)
+        # Add remaining tables with a special marker
+        for table in sorted(missing):
+            sorted_tables.append(table)
+            load_order_levels[table] = -1  # Indicates circular dependency
+
+    return sorted_tables, load_order_levels
+
+
+def generate_database_multi_source_contracts(
+    connection_string: str,
+    database_type: str,
+    schema: str | None = None,
+    tables: list[str] | None = None,
+    include_relationships: bool = True,
+    sample_size: int = 1000,
+    config: dict[str, Any] | None = None,
+) -> list[SourceContract]:
+    """
+    Generate source contracts for multiple tables with relationship metadata.
+
+    Args:
+        connection_string: Database connection string
+        database_type: Database type (postgresql, mysql, sqlite)
+        schema: Database schema name (optional)
+        tables: List of specific tables to analyze (None = all tables)
+        include_relationships: Whether to detect and include FK relationships
+        sample_size: Number of rows to sample per table
+        config: Optional configuration dictionary
+
+    Returns:
+        List of SourceContract instances with relationship metadata
+
+    Raises:
+        ValueError: If database_type is not supported or tables not found
+    """
+    if database_type not in ("postgresql", "mysql", "sqlite"):
+        raise ValueError(f"Unsupported database_type: {database_type}")
+
+    # Get list of tables
+    if tables is None:
+        table_list_result = list_database_tables(
+            connection_string=connection_string,
+            database_type=database_type,
+            schema=schema,
+            include_views=False,
+            include_row_counts=False,
+        )
+        tables = [t["table_name"] for t in table_list_result]
+
+    if not tables:
+        return []
+
+    # Detect relationships if requested
+    relationships_map: dict[str, dict[str, Any]] = {}
+    table_dependencies: dict[str, list[str]] = {}
+
+    if include_relationships:
+        for table_name in tables:
+            relationships = detect_foreign_keys(
+                connection_string=connection_string,
+                database_type=database_type,
+                table_name=table_name,
+                schema=schema,
+            )
+            relationships_map[table_name] = relationships
+
+            # Build dependency list (tables this table depends on)
+            depends_on = []
+            for fk in relationships["foreign_keys"]:
+                referred_table = fk["referred_table"]
+                if referred_table in tables:
+                    depends_on.append(referred_table)
+            table_dependencies[table_name] = depends_on
+
+        # Calculate load order
+        sorted_tables, load_order_levels = calculate_load_order(table_dependencies)
+    else:
+        sorted_tables = sorted(tables)
+        load_order_levels = dict.fromkeys(tables, 1)
+
+    # Generate contracts for each table
+    contracts = []
+    for table_name in sorted_tables:
+        try:
+            # Generate base contract
+            contract = generate_database_source_contract(
+                source_id=table_name,
+                connection_string=connection_string,
+                database_type=database_type,
+                source_type="table",
+                source_name=table_name,
+                schema=schema,
+                sample_size=sample_size,
+                config=config,
+            )
+
+            # Add relationship metadata if available
+            if include_relationships and table_name in relationships_map:
+                contract.metadata["relationships"] = relationships_map[table_name]
+                contract.metadata["load_order"] = load_order_levels.get(table_name, 1)
+                contract.metadata["depends_on"] = table_dependencies.get(table_name, [])
+
+            contracts.append(contract)
+
+        except Exception:
+            # Skip tables that fail to analyze
+            continue
+
+    return contracts
