@@ -8,6 +8,7 @@ import pytest
 
 from mcp_server.database_analyzer import (
     generate_database_source_contract,
+    list_database_tables,
     map_database_type_to_contract_type,
     sanitize_connection_string,
 )
@@ -341,3 +342,131 @@ def test_generate_database_source_contract_serialization(sqlite_db: str) -> None
     # Should use "schema" alias in JSON
     assert '"schema"' in json_str
     assert '"data_schema"' not in json_str
+
+
+# ============================================================================
+# List Database Tables Tests
+# ============================================================================
+
+
+def test_list_database_tables_basic(sqlite_db: str) -> None:
+    """Test listing tables from a database"""
+    tables = list_database_tables(
+        connection_string=sqlite_db,
+        database_type="sqlite",
+    )
+
+    assert isinstance(tables, list)
+    assert len(tables) == 2  # users and orders
+
+    # Find users table
+    users_table = next((t for t in tables if t["table_name"] == "users"), None)
+    assert users_table is not None
+    assert users_table["type"] == "table"
+    assert users_table["has_primary_key"] is True
+    assert users_table["row_count"] == 3
+    assert users_table["column_count"] == 8
+
+    # Find orders table
+    orders_table = next((t for t in tables if t["table_name"] == "orders"), None)
+    assert orders_table is not None
+    assert orders_table["type"] == "table"
+    assert orders_table["has_primary_key"] is True
+
+
+def test_list_database_tables_without_row_counts(sqlite_db: str) -> None:
+    """Test listing tables without querying row counts"""
+    tables = list_database_tables(
+        connection_string=sqlite_db,
+        database_type="sqlite",
+        include_row_counts=False,
+    )
+
+    assert isinstance(tables, list)
+    assert len(tables) == 2
+
+    # Row counts should be None
+    for table in tables:
+        assert table["row_count"] is None
+        assert table["column_count"] is not None
+
+
+def test_list_database_tables_sorted(sqlite_db: str) -> None:
+    """Test that tables are returned sorted by name"""
+    tables = list_database_tables(
+        connection_string=sqlite_db,
+        database_type="sqlite",
+    )
+
+    table_names = [t["table_name"] for t in tables]
+    assert table_names == sorted(table_names)
+
+
+def test_list_database_tables_unsupported_database() -> None:
+    """Test error for unsupported database type"""
+    with pytest.raises(ValueError, match="Unsupported database_type"):
+        list_database_tables(
+            connection_string="oracle://user:pass@localhost/db",
+            database_type="oracle",
+        )
+
+
+def test_list_database_tables_empty_database() -> None:
+    """Test listing tables from an empty database"""
+    # Create empty database
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".db") as temp_db:
+        db_path = temp_db.name
+
+    try:
+        # Just create the connection, no tables
+        conn = sqlite3.connect(db_path)
+        conn.close()
+
+        tables = list_database_tables(
+            connection_string=f"sqlite:///{db_path}",
+            database_type="sqlite",
+        )
+
+        assert isinstance(tables, list)
+        assert len(tables) == 0
+
+    finally:
+        Path(db_path).unlink(missing_ok=True)
+
+
+def test_list_database_tables_primary_key_info(sqlite_db: str) -> None:
+    """Test that primary key information is correctly detected"""
+    tables = list_database_tables(
+        connection_string=sqlite_db,
+        database_type="sqlite",
+    )
+
+    users_table = next((t for t in tables if t["table_name"] == "users"), None)
+    assert users_table is not None
+    assert users_table["has_primary_key"] is True
+    assert "primary_key_columns" in users_table
+    assert "id" in users_table["primary_key_columns"]
+
+
+def test_list_database_tables_metadata_structure(sqlite_db: str) -> None:
+    """Test that each table has the expected metadata structure"""
+    tables = list_database_tables(
+        connection_string=sqlite_db,
+        database_type="sqlite",
+    )
+
+    for table in tables:
+        # Required fields
+        assert "table_name" in table
+        assert "schema" in table
+        assert "type" in table
+        assert "has_primary_key" in table
+        assert "row_count" in table
+        assert "column_count" in table
+
+        # Type checks
+        assert isinstance(table["table_name"], str)
+        assert isinstance(table["type"], str)
+        assert isinstance(table["has_primary_key"], bool)
+        assert isinstance(table["column_count"], (int, type(None)))
+        assert isinstance(table["row_count"], (int, type(None)))

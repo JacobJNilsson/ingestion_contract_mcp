@@ -407,3 +407,101 @@ def generate_database_source_contract(
     )
 
     return contract
+
+
+def list_database_tables(
+    connection_string: str,
+    database_type: str,
+    schema: str | None = None,
+    include_views: bool = False,
+    include_row_counts: bool = True,
+) -> list[dict[str, Any]]:
+    """
+    List all tables in a database or schema with metadata.
+
+    Args:
+        connection_string: Database connection string
+        database_type: Database type (postgresql, mysql, sqlite)
+        schema: Database schema name (optional, defaults to 'public' for PostgreSQL)
+        include_views: Whether to include views in the results
+        include_row_counts: Whether to query row counts (may be slow for large databases)
+
+    Returns:
+        List of dictionaries with table metadata
+
+    Raises:
+        ValueError: If database_type is not supported
+    """
+    if database_type not in ("postgresql", "mysql", "sqlite"):
+        raise ValueError(f"Unsupported database_type: {database_type}. Must be 'postgresql', 'mysql', or 'sqlite'")
+
+    engine = create_database_engine(connection_string, database_type)
+
+    try:
+        inspector = inspect(engine)
+
+        # For PostgreSQL, default to 'public' schema if not specified
+        if database_type == "postgresql" and schema is None:
+            schema = "public"
+
+        # Get table names
+        table_names = inspector.get_table_names(schema=schema)
+
+        # Get view names if requested
+        view_names = []
+        if include_views:
+            view_names = inspector.get_view_names(schema=schema)
+
+        # Combine tables and views
+        all_tables = [(name, "table") for name in table_names] + [(name, "view") for name in view_names]
+
+        results = []
+        metadata = MetaData()
+
+        with engine.connect() as conn:
+            for table_name, table_type in all_tables:
+                table_info: dict[str, Any] = {
+                    "table_name": table_name,
+                    "schema": schema,
+                    "type": table_type,
+                }
+
+                # Get primary key info
+                try:
+                    pk_constraint = inspector.get_pk_constraint(table_name, schema=schema)
+                    table_info["has_primary_key"] = bool(pk_constraint.get("constrained_columns"))
+                    if table_info["has_primary_key"]:
+                        table_info["primary_key_columns"] = pk_constraint.get("constrained_columns", [])
+                except Exception:
+                    # Some databases/views may not support PK inspection
+                    table_info["has_primary_key"] = False
+
+                # Get row count if requested
+                if include_row_counts and table_type == "table":
+                    try:
+                        table = Table(table_name, metadata, autoload_with=engine, schema=schema)
+                        count_query = select(text("COUNT(*)")).select_from(table)
+                        result = conn.execute(count_query)
+                        table_info["row_count"] = result.scalar() or 0
+                    except Exception:
+                        # If count fails, set to None
+                        table_info["row_count"] = None
+                else:
+                    table_info["row_count"] = None
+
+                # Get column count
+                try:
+                    columns = inspector.get_columns(table_name, schema=schema)
+                    table_info["column_count"] = len(columns)
+                except Exception:
+                    table_info["column_count"] = None
+
+                results.append(table_info)
+
+        # Sort by table name
+        results.sort(key=lambda x: x["table_name"])
+
+        return results
+
+    finally:
+        engine.dispose()
