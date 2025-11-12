@@ -7,6 +7,9 @@ from pathlib import Path
 import pytest
 
 from mcp_server.database_analyzer import (
+    calculate_load_order,
+    detect_foreign_keys,
+    generate_database_multi_source_contracts,
     generate_database_source_contract,
     list_database_tables,
     map_database_type_to_contract_type,
@@ -470,3 +473,219 @@ def test_list_database_tables_metadata_structure(sqlite_db: str) -> None:
         assert isinstance(table["has_primary_key"], bool)
         assert isinstance(table["column_count"], (int, type(None)))
         assert isinstance(table["row_count"], (int, type(None)))
+
+
+# ============================================================================
+# Multi-Table Analysis Tests
+# ============================================================================
+
+
+def test_detect_foreign_keys(sqlite_db: str) -> None:
+    """Test detecting foreign key relationships"""
+    # Orders table has a FK to users
+    relationships = detect_foreign_keys(
+        connection_string=sqlite_db,
+        database_type="sqlite",
+        table_name="orders",
+    )
+
+    assert isinstance(relationships, dict)
+    assert "foreign_keys" in relationships
+    assert "referenced_by" in relationships
+
+    # Orders should have FK to users
+    assert len(relationships["foreign_keys"]) == 1
+    fk = relationships["foreign_keys"][0]
+    assert fk["referred_table"] == "users"
+
+
+def test_detect_foreign_keys_referenced_by(sqlite_db: str) -> None:
+    """Test detecting tables that reference this table"""
+    # Users table is referenced by orders
+    relationships = detect_foreign_keys(
+        connection_string=sqlite_db,
+        database_type="sqlite",
+        table_name="users",
+    )
+
+    assert len(relationships["referenced_by"]) == 1
+    ref = relationships["referenced_by"][0]
+    assert ref["table"] == "orders"
+
+
+def test_calculate_load_order_simple() -> None:
+    """Test calculating load order for simple dependencies"""
+    # users -> orders -> order_items
+    dependencies = {
+        "users": [],
+        "orders": ["users"],
+        "order_items": ["orders"],
+    }
+
+    sorted_tables, load_order = calculate_load_order(dependencies)
+
+    assert sorted_tables[0] == "users"
+    assert sorted_tables[1] == "orders"
+    assert sorted_tables[2] == "order_items"
+
+    assert load_order["users"] == 1
+    assert load_order["orders"] == 2
+    assert load_order["order_items"] == 3
+
+
+def test_calculate_load_order_no_dependencies() -> None:
+    """Test calculating load order with no dependencies"""
+    dependencies: dict[str, list[str]] = {
+        "table_a": [],
+        "table_b": [],
+        "table_c": [],
+    }
+
+    sorted_tables, load_order = calculate_load_order(dependencies)
+
+    # All should be at level 1
+    assert all(load_order[t] == 1 for t in sorted_tables)
+
+
+def test_calculate_load_order_complex() -> None:
+    """Test calculating load order with complex dependencies"""
+    dependencies = {
+        "users": [],
+        "products": [],
+        "orders": ["users"],
+        "order_items": ["orders", "products"],
+    }
+
+    sorted_tables, load_order = calculate_load_order(dependencies)
+
+    # Users and products should be level 1
+    assert load_order["users"] == 1
+    assert load_order["products"] == 1
+
+    # Orders should be level 2
+    assert load_order["orders"] == 2
+
+    # Order_items should be level 3
+    assert load_order["order_items"] == 3
+
+
+def test_generate_database_multi_source_contracts_all_tables(sqlite_db: str) -> None:
+    """Test generating contracts for all tables"""
+    contracts = generate_database_multi_source_contracts(
+        connection_string=sqlite_db,
+        database_type="sqlite",
+        include_relationships=True,
+    )
+
+    assert len(contracts) == 2  # users and orders
+    assert all(contract.database_type == "sqlite" for contract in contracts)
+
+    # Check that we got both tables
+    table_names = [contract.source_name for contract in contracts]
+    assert "users" in table_names
+    assert "orders" in table_names
+
+
+def test_generate_database_multi_source_contracts_specific_tables(sqlite_db: str) -> None:
+    """Test generating contracts for specific tables only"""
+    contracts = generate_database_multi_source_contracts(
+        connection_string=sqlite_db,
+        database_type="sqlite",
+        tables=["users"],
+        include_relationships=False,
+    )
+
+    assert len(contracts) == 1
+    assert contracts[0].source_name == "users"
+
+
+def test_generate_database_multi_source_contracts_with_relationships(sqlite_db: str) -> None:
+    """Test that relationship metadata is included"""
+    contracts = generate_database_multi_source_contracts(
+        connection_string=sqlite_db,
+        database_type="sqlite",
+        include_relationships=True,
+    )
+
+    # Find users and orders contracts
+    users_contract = next((c for c in contracts if c.source_name == "users"), None)
+    orders_contract = next((c for c in contracts if c.source_name == "orders"), None)
+
+    assert users_contract is not None
+    assert orders_contract is not None
+
+    # Check relationship metadata
+    assert "relationships" in users_contract.metadata
+    assert "load_order" in users_contract.metadata
+    assert "depends_on" in users_contract.metadata
+
+    # Users should be referenced by orders
+    assert len(users_contract.metadata["relationships"]["referenced_by"]) == 1
+
+    # Orders should have FK to users
+    assert len(orders_contract.metadata["relationships"]["foreign_keys"]) == 1
+
+    # Users should load before orders
+    assert users_contract.metadata["load_order"] < orders_contract.metadata["load_order"]
+
+
+def test_generate_database_multi_source_contracts_load_order(sqlite_db: str) -> None:
+    """Test that contracts are returned in correct load order"""
+    contracts = generate_database_multi_source_contracts(
+        connection_string=sqlite_db,
+        database_type="sqlite",
+        include_relationships=True,
+    )
+
+    # Users should come before orders in the list
+    table_names = [c.source_name for c in contracts]
+    users_idx = table_names.index("users")
+    orders_idx = table_names.index("orders")
+
+    assert users_idx < orders_idx
+
+
+def test_generate_database_multi_source_contracts_without_relationships(sqlite_db: str) -> None:
+    """Test generating contracts without relationship detection"""
+    contracts = generate_database_multi_source_contracts(
+        connection_string=sqlite_db,
+        database_type="sqlite",
+        include_relationships=False,
+    )
+
+    assert len(contracts) == 2
+
+    # Should not have relationship metadata
+    for contract in contracts:
+        assert "relationships" not in contract.metadata
+        assert "load_order" not in contract.metadata or contract.metadata["load_order"] == 1
+
+
+def test_generate_database_multi_source_contracts_empty_database() -> None:
+    """Test generating contracts from empty database"""
+    # Create empty database
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".db") as temp_db:
+        db_path = temp_db.name
+
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.close()
+
+        contracts = generate_database_multi_source_contracts(
+            connection_string=f"sqlite:///{db_path}",
+            database_type="sqlite",
+        )
+
+        assert len(contracts) == 0
+
+    finally:
+        Path(db_path).unlink(missing_ok=True)
+
+
+def test_generate_database_multi_source_contracts_unsupported_database() -> None:
+    """Test error for unsupported database type"""
+    with pytest.raises(ValueError, match="Unsupported database_type"):
+        generate_database_multi_source_contracts(
+            connection_string="oracle://user:pass@localhost/db",
+            database_type="oracle",
+        )
