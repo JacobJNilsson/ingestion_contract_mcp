@@ -110,6 +110,56 @@ async def list_tools() -> list[Tool]:
             },
         ),
         Tool(
+            name="generate_database_source_contract",
+            description=(
+                "Generate a source contract from a database table or query. "
+                "Analyzes database schema, extracts column types, and samples data for quality metrics. "
+                "Supports PostgreSQL, MySQL, and SQLite. Returns the contract as JSON."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "source_id": {
+                        "type": "string",
+                        "description": "Unique identifier for this source (e.g., 'orders_table')",
+                    },
+                    "connection_string": {
+                        "type": "string",
+                        "description": "Database connection string (e.g., 'postgresql://user:pass@localhost:5432/mydb')",
+                    },
+                    "database_type": {
+                        "type": "string",
+                        "description": "Database type: 'postgresql', 'mysql', or 'sqlite'",
+                    },
+                    "source_type": {
+                        "type": "string",
+                        "description": "Source type: 'table', 'view', or 'query' (default: 'table')",
+                    },
+                    "source_name": {
+                        "type": "string",
+                        "description": "Table or view name (required if source_type is 'table' or 'view')",
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "SQL query (required if source_type is 'query')",
+                    },
+                    "schema": {
+                        "type": "string",
+                        "description": "Database schema name (optional, for databases that support schemas)",
+                    },
+                    "sample_size": {
+                        "type": "integer",
+                        "description": "Number of rows to sample for analysis (default: 1000)",
+                    },
+                    "config": {
+                        "type": "object",
+                        "description": "Optional configuration/metadata dictionary",
+                    },
+                },
+                "required": ["source_id", "connection_string", "database_type"],
+            },
+        ),
+        Tool(
             name="analyze_source",
             description=(
                 "Analyze a source file and return detailed metadata including file format, encoding, "
@@ -155,6 +205,7 @@ async def call_tool(name: str, arguments: dict[str, object]) -> list[TextContent
         "generate_source_contract": contract_handler.generate_source_contract,
         "generate_destination_contract": contract_handler.generate_destination_contract,
         "generate_transformation_contract": contract_handler.generate_transformation_contract,
+        "generate_database_source_contract": contract_handler.generate_database_source_contract,
         "analyze_source": contract_handler.analyze_source,
         "validate_contract": contract_handler.validate_contract,
     }
