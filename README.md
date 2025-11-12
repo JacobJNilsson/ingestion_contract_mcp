@@ -21,62 +21,33 @@ This MCP server solves these problems with a **three-contract architecture** tha
 
 ### 1. Source Contracts
 
-**Automatically analyze source data files**
+Describe where data comes from. Automatically analyzes and documents:
 
-```bash
-generate_source_contract(
-    source_path="/path/to/transactions.csv",
-    source_id="bank_transactions"
-)
-```
-
-Returns a contract with:
-
-- File format, encoding, and delimiter detection
-- Automatic schema inference with data types
-- Quality metrics (row counts, sample data, issues)
-- UTF-8 BOM detection and handling
-- Support for European number formats (1.234,56)
+- **File sources**: CSV, JSON, and other file formats with encoding detection
+- **Database sources**: PostgreSQL, MySQL, SQLite tables and queries
+- Schema inference with data types
+- Quality metrics and data profiling
+- Format-specific handling (UTF-8 BOM, European numbers, etc.)
 
 ### 2. Destination Contracts
 
-**Define target schemas and validation rules**
+Define where data goes. Specifies:
 
-```bash
-generate_destination_contract(
-    destination_id="dwh_transactions",
-    schema={
-        "fields": ["transaction_id", "date", "amount"],
-        "types": ["uuid", "date", "decimal"],
-        "constraints": {"amount": "non_negative"}
-    }
-)
-```
-
-Returns a contract with:
-
-- Target schema definition
-- Data type specifications
+- Target schema and data types
 - Validation rules and constraints
+- Required fields and uniqueness constraints
+- Data quality requirements
 
 ### 3. Transformation Contracts
 
-**Map source to destination with transformation logic**
-
-```bash
-generate_transformation_contract(
-    transformation_id="bank_to_dwh",
-    source_ref="bank_transactions",
-    destination_ref="dwh_transactions"
-)
-```
-
-Returns a contract template for:
+Map source to destination. Defines:
 
 - Field mappings between source and destination
-- Transformation rules (type conversions, formatting)
-- Enrichment logic (derived fields, lookups)
-- Execution plan (batch size, error handling)
+- Transformation logic (type conversions, formatting)
+- Enrichment rules (derived fields, lookups)
+- Execution configuration (batch size, error handling)
+
+See the [API documentation](mcp_server/README.md) for detailed usage and examples.
 
 ## Quick Start
 

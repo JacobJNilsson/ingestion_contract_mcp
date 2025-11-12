@@ -36,23 +36,30 @@ Add to `.cursor/mcp.json`:
    - Automatically analyzes file format, encoding, schema, and quality
    - Returns: JSON contract with `contract_type: "source"`
 
-2. **generate_destination_contract** - Generate a destination contract
+2. **generate_database_source_contract** - Generate a source contract from a database table or query
+   - Supports PostgreSQL, MySQL, and SQLite
+   - Analyzes schema, types, and samples data
+   - Returns: JSON contract with `contract_type: "source"`
+
+3. **generate_destination_contract** - Generate a destination contract
    - Define target schema, validation rules, and constraints
    - Returns: JSON contract with `contract_type: "destination"`
 
-3. **generate_transformation_contract** - Generate a transformation contract
+4. **generate_transformation_contract** - Generate a transformation contract
    - Maps source to destination with transformation rules
    - Returns: JSON contract with `contract_type: "transformation"`
 
 ### Analysis & Validation
 
-4. **analyze_source** - Analyze a source file and return raw metadata
-5. **validate_contract** - Validate any contract type (source, destination, or transformation)
+5. **analyze_source** - Analyze a source file and return raw metadata
+6. **validate_contract** - Validate any contract type (source, destination, or transformation)
 
-## Example Workflow
+## Example Workflows
+
+### File-Based Source
 
 ```python
-# 1. Generate source contract
+# 1. Generate source contract from CSV file
 source_contract = generate_source_contract(
     source_path="/path/to/data.csv",
     source_id="swedish_bank_csv"
@@ -76,6 +83,31 @@ transform_contract = generate_transformation_contract(
 
 # 4. LLM fills in field_mappings, transformations, enrichment in transform_contract
 # 5. Validate and execute
+```
+
+### Database-Based Source
+
+```python
+# 1. Generate source contract from PostgreSQL table
+source_contract = generate_database_source_contract(
+    source_id="orders_table",
+    connection_string="postgresql://user:pass@localhost:5432/mydb",
+    database_type="postgresql",
+    source_type="table",
+    source_name="orders",
+    schema="public"
+)
+
+# 2. Generate source contract from SQL query
+query_contract = generate_database_source_contract(
+    source_id="active_users",
+    connection_string="postgresql://user:pass@localhost:5432/mydb",
+    database_type="postgresql",
+    source_type="query",
+    query="SELECT user_id, email, created_at FROM users WHERE status = 'active'"
+)
+
+# 3. Continue with destination and transformation contracts as above
 ```
 
 ## Contract Types
