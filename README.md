@@ -274,7 +274,7 @@ ingestion_contract_mcp/
 
 ## Requirements
 
-- **Python**: 3.11+ (3.13 recommended)
+- **Python**: 3.13+
 - **MCP**: 1.0.0+
 - **Pydantic**: 2.0.0+
 
