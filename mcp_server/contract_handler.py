@@ -11,6 +11,7 @@ from mcp_server.contract_generator import (
     generate_source_contract,
     generate_transformation_contract,
 )
+from mcp_server.database_analyzer import generate_database_source_contract, sanitize_connection_string
 from mcp_server.models import Contract, DestinationContract, SourceContract, TransformationContract
 
 
@@ -154,6 +155,63 @@ class ContractHandler:
             return contract.model_dump_json(indent=2, exclude_none=False, by_alias=True)
         except (ValueError, TypeError, ValidationError) as e:
             return json.dumps({"error": f"Failed to generate transformation contract: {e!s}"}, indent=2)
+
+    def generate_database_source_contract(
+        self,
+        source_id: str,
+        connection_string: str,
+        database_type: str,
+        source_type: str = "table",
+        source_name: str | None = None,
+        query: str | None = None,
+        schema: str | None = None,
+        sample_size: int = 1000,
+        config: dict[str, object] | None = None,
+    ) -> str:
+        """Generate a source contract from a database table or query
+
+        Args:
+            source_id: Unique identifier for this source
+            connection_string: Database connection string
+            database_type: Database type (postgresql, mysql, sqlite)
+            source_type: Type of source ('table', 'view', or 'query')
+            source_name: Table or view name (required if source_type is 'table' or 'view')
+            query: SQL query (required if source_type is 'query')
+            schema: Database schema name (optional)
+            sample_size: Number of rows to sample for analysis
+            config: Optional configuration dictionary
+
+        Returns:
+            JSON string of the generated source contract
+        """
+        try:
+            # Sanitize connection string for logging
+            sanitized_conn = sanitize_connection_string(connection_string)
+
+            # Generate contract
+            contract = generate_database_source_contract(
+                source_id=source_id,
+                connection_string=connection_string,
+                database_type=database_type,
+                source_type=source_type,
+                source_name=source_name,
+                query=query,
+                schema=schema,
+                sample_size=sample_size,
+                config=config,
+            )
+
+            # Note: We don't include the connection string in the contract for security
+            # It should be managed externally
+            return contract.model_dump_json(indent=2, exclude_none=False, by_alias=True)
+
+        except ValueError as e:
+            return json.dumps({"error": f"Validation error: {e!s}"}, indent=2)
+        except Exception as e:
+            # Log with sanitized connection string
+            sanitized_conn = sanitize_connection_string(connection_string)
+            error_msg = f"Failed to generate database source contract for {sanitized_conn}: {e!s}"
+            return json.dumps({"error": error_msg}, indent=2)
 
     def analyze_source(self, source_path: str) -> str:
         """Analyze a source file and return metadata
