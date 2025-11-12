@@ -30,11 +30,18 @@ class SourceContract(BaseModel):
     contract_version: str = Field(default="1.0", description="Version of the contract schema")
     contract_type: Literal["source"] = Field(default="source", description="Type of contract")
     source_id: str = Field(description="Unique identifier for this source")
-    source_path: str = Field(description="Path to the source data file")
-    file_format: str = Field(description="File format (csv, json, parquet, etc.)")
-    encoding: str = Field(default="utf-8", description="File encoding")
+    # File-based sources
+    source_path: str | None = Field(default=None, description="Path to the source data file")
+    file_format: str | None = Field(default=None, description="File format (csv, json, parquet, etc.)")
+    encoding: str | None = Field(default="utf-8", description="File encoding")
     delimiter: str | None = Field(default=None, description="Delimiter for CSV files")
-    has_header: bool = Field(default=True, description="Whether the file has a header row")
+    has_header: bool | None = Field(default=True, description="Whether the file has a header row")
+    # Database-based sources
+    database_type: str | None = Field(default=None, description="Database type (postgresql, mysql, sqlite)")
+    source_type: str | None = Field(default=None, description="Source type (table, view, query)")
+    source_name: str | None = Field(default=None, description="Table or view name")
+    database_schema: str | None = Field(default=None, description="Database schema name")
+    # Common fields
     data_schema: SourceSchema = Field(description="Schema information", alias="schema")
     quality_metrics: QualityMetrics = Field(description="Quality assessment")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
