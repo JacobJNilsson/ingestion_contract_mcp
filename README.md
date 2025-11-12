@@ -114,48 +114,6 @@ Add to your `.cursor/mcp.json`:
 
 Then restart Cursor, and the contract generation tools will be available to AI assistants.
 
-### Command Line Usage
-
-```bash
-# Run the MCP server
-uv run mcp_server/server.py
-
-# Generate a contract from a CSV file
-# (Use MCP tools via Cursor or other MCP clients)
-```
-
-## Example Workflow
-
-```python
-# 1. Analyze a data source
-source_contract = generate_source_contract(
-    source_path="/data/bank_export.csv",
-    source_id="swedish_bank_2024"
-)
-# Auto-detects: CSV, UTF-8, semicolon delimiter, European numbers
-# Returns: schema with 13 fields, 352 rows, quality assessment
-
-# 2. Define destination
-destination_contract = generate_destination_contract(
-    destination_id="analytics_dwh",
-    schema={
-        "fields": ["id", "date", "amount", "currency"],
-        "types": ["uuid", "date", "decimal", "varchar(3)"]
-    }
-)
-
-# 3. Create transformation
-transformation_contract = generate_transformation_contract(
-    transformation_id="bank_to_analytics",
-    source_ref="swedish_bank_2024",
-    destination_ref="analytics_dwh"
-)
-
-# 4. AI or developer fills in field mappings and transformations
-# 5. Validate contracts before execution
-validate_contract("/path/to/contract.json")
-```
-
 ## Development
 
 ### Setup Development Environment
@@ -171,109 +129,12 @@ pre-commit install
 ### Available Commands
 
 ```bash
-# Code quality checks
-make lint          # Run Ruff linter
-make format        # Format code with Ruff
-make mypy          # Run type checking
 make check         # Run all checks (lint + format-check + mypy)
-
-# Testing
 make test          # Run pytest test suite
-
-# Run everything
-make check && make test
+make format        # Format code with Ruff
 ```
 
-### Running Tests
-
-The project has comprehensive test coverage:
-
-```bash
-# Run all tests
-make test
-
-# Run specific test file
-uv run pytest tests/test_contract_generator.py
-
-# Run with coverage
-uv run pytest --cov=mcp_server --cov-report=html
-```
-
-**Test categories:**
-- `test_contract_generator.py` - Core generation logic
-- `test_contract_generator_data_quality.py` - Edge cases (BOMs, sparse data, encodings)
-- `test_contract_handler.py` - Business logic and validation
-- `test_server.py` - MCP server integration
-
-### Code Quality Tools
-
-- **Ruff** - Fast Python linter and formatter
-- **mypy** - Static type checking with strict mode
-- **pytest** - Test framework with async support
-- **pre-commit** - Git hooks for automated checks
-
-All code is fully typed with Python 3.13+ type hints and validated by mypy in strict mode.
-
-### Continuous Integration
-
-All pull requests run automated checks for linting, formatting, type checking, and tests on Python 3.13.
-
-## Project Structure
-
-```
-ingestion_contract_mcp/
-├── .github/                 # GitHub configuration
-│   └── workflows/
-│       └── ci.yml           # CI/CD pipeline
-├── .cursor/                 # Cursor IDE configuration
-│   └── rules/               # Project-specific AI rules
-├── mcp_server/              # Main package
-│   ├── server.py            # MCP server entry point
-│   ├── contract_handler.py  # Business logic layer
-│   ├── contract_generator.py # Contract generation
-│   ├── models.py            # Pydantic data models
-│   ├── config.py            # Configuration
-│   └── README.md            # Detailed API documentation
-├── tests/                   # Test suite
-│   ├── fixtures/            # Test data files
-│   ├── test_server.py       # Server integration tests
-│   ├── test_contract_handler.py
-│   ├── test_contract_generator.py
-│   └── test_contract_generator_data_quality.py
-├── data/                    # Example data files
-├── pyproject.toml           # Project metadata and deps
-├── Makefile                 # Development commands
-├── uv.lock                  # Locked dependencies
-└── README.md                # This file
-```
-
-## Features
-
-### Automated Source Analysis
-- CSV, JSON, and other file format support
-- Encoding detection (UTF-8, Latin-1, CP1252, etc.)
-- Delimiter sniffing for CSV files
-- UTF-8 BOM detection and removal
-- Multi-row type inference for sparse data
-- European and US number format support
-
-### Type-Safe Contracts
-- All contracts are Pydantic models with validation
-- Full type hints using Python 3.13+ syntax
-- Runtime validation on contract creation
-- JSON serialization with aliases
-
-### Stateless Design
-- No global state or configuration
-- All operations use absolute paths
-- Clients control file persistence
-- Easy to test and reason about
-
-### Quality Assessment
-- Row counting and sampling
-- Data quality issue detection
-- Format consistency checks
-- Detailed error messages
+All code is fully typed with Python 3.13+ type hints. CI runs automatically on pull requests.
 
 ## Documentation
 
@@ -289,16 +150,3 @@ ingestion_contract_mcp/
 - **Pydantic**: 2.0.0+
 
 See `pyproject.toml` for complete dependency list.
-
-## License
-
-[Add your license information here]
-
-## Contributing
-
-[Add contributing guidelines here]
-
-## Support
-
-For issues, questions, or contributions, please [add contact information or repository link].
-
