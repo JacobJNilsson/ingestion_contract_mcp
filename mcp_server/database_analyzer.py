@@ -1,13 +1,17 @@
 """Database introspection and analysis for contract generation"""
 
+import logging
 import re
 from typing import Any
 from urllib.parse import urlparse
 
 from sqlalchemy import MetaData, Table, create_engine, inspect, select, text
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import DatabaseError, NoSuchTableError, OperationalError
 
 from mcp_server.models import QualityMetrics, SourceContract, SourceSchema
+
+logger = logging.getLogger(__name__)
 
 
 def sanitize_connection_string(connection_string: str) -> str:
@@ -472,8 +476,15 @@ def list_database_tables(
                     table_info["has_primary_key"] = bool(pk_constraint.get("constrained_columns"))
                     if table_info["has_primary_key"]:
                         table_info["primary_key_columns"] = pk_constraint.get("constrained_columns", [])
-                except Exception:
-                    # Some databases/views may not support PK inspection
+                except NotImplementedError:
+                    # Some databases/views don't support PK inspection
+                    logger.debug(f"PK inspection not supported for {table_type} '{table_name}'")
+                    table_info["has_primary_key"] = False
+                except (NoSuchTableError, DatabaseError) as e:
+                    logger.debug(f"Could not get PK info for '{table_name}': {e}")
+                    table_info["has_primary_key"] = False
+                except Exception as e:
+                    logger.warning(f"Unexpected error getting PK for '{table_name}': {e}")
                     table_info["has_primary_key"] = False
 
                 # Get row count if requested
@@ -483,8 +494,11 @@ def list_database_tables(
                         count_query = select(text("COUNT(*)")).select_from(table)
                         result = conn.execute(count_query)
                         table_info["row_count"] = result.scalar() or 0
-                    except Exception:
-                        # If count fails, set to None
+                    except (NoSuchTableError, DatabaseError, OperationalError) as e:
+                        logger.debug(f"Could not count rows for '{table_name}': {e}")
+                        table_info["row_count"] = None
+                    except Exception as e:
+                        logger.warning(f"Unexpected error counting rows for '{table_name}': {e}")
                         table_info["row_count"] = None
                 else:
                     table_info["row_count"] = None
@@ -493,7 +507,11 @@ def list_database_tables(
                 try:
                     columns = inspector.get_columns(table_name, schema=schema)
                     table_info["column_count"] = len(columns)
-                except Exception:
+                except (NoSuchTableError, DatabaseError) as e:
+                    logger.debug(f"Could not get column count for '{table_name}': {e}")
+                    table_info["column_count"] = None
+                except Exception as e:
+                    logger.warning(f"Unexpected error getting column count for '{table_name}': {e}")
                     table_info["column_count"] = None
 
                 results.append(table_info)
@@ -552,9 +570,13 @@ def detect_foreign_keys(
                         "referred_schema": fk.get("referred_schema"),
                     }
                 )
-        except Exception:
-            # Some databases may not support FK inspection
-            pass
+        except NotImplementedError:
+            # Some databases don't support FK introspection
+            logger.debug(f"Foreign key introspection not supported for {database_type}")
+        except (NoSuchTableError, DatabaseError) as e:
+            logger.warning(f"Could not inspect foreign keys for table '{table_name}': {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error getting foreign keys for '{table_name}': {e}", exc_info=True)
 
         # Get tables that reference this table
         try:
@@ -574,10 +596,14 @@ def detect_foreign_keys(
                                     "referred_columns": fk.get("referred_columns", []),
                                 }
                             )
-                except Exception:
-                    continue
-        except Exception:
-            pass
+                except (NoSuchTableError, DatabaseError) as e:
+                    logger.debug(f"Could not inspect FKs for table '{other_table}': {e}")
+                except Exception as e:
+                    logger.warning(f"Unexpected error inspecting '{other_table}' for reverse FKs: {e}")
+        except (DatabaseError, OperationalError) as e:
+            logger.warning(f"Could not list tables to find reverse foreign keys: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error finding reverse foreign keys: {e}", exc_info=True)
 
         return relationships
 
@@ -709,6 +735,8 @@ def generate_database_multi_source_contracts(
 
     # Generate contracts for each table
     contracts = []
+    failed_tables = []
+
     for table_name in sorted_tables:
         try:
             # Generate base contract
@@ -731,8 +759,23 @@ def generate_database_multi_source_contracts(
 
             contracts.append(contract)
 
-        except Exception:
-            # Skip tables that fail to analyze
-            continue
+        except ValueError as e:
+            # Expected validation errors
+            logger.warning(f"Skipping table '{table_name}': {e}")
+            failed_tables.append(table_name)
+        except (NoSuchTableError, DatabaseError, OperationalError) as e:
+            # Database errors - table may have been dropped, permissions issue, etc.
+            logger.warning(f"Could not analyze table '{table_name}': {e}")
+            failed_tables.append(table_name)
+        except Exception as e:
+            # Unexpected errors - log with full traceback
+            logger.error(f"Unexpected error analyzing table '{table_name}': {e}", exc_info=True)
+            failed_tables.append(table_name)
+
+    if failed_tables:
+        logger.info(
+            f"Successfully generated {len(contracts)}/{len(sorted_tables)} contracts. "
+            f"Failed tables: {', '.join(failed_tables)}"
+        )
 
     return contracts
