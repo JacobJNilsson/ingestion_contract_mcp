@@ -5,6 +5,7 @@ It should only be used by the MCP server, not by ingestors directly.
 """
 
 import csv
+import json
 from pathlib import Path
 from typing import Any
 
@@ -187,20 +188,8 @@ def detect_data_types_from_multiple_rows(data_rows: list[list[str]], num_columns
     return final_types
 
 
-def generate_source_analysis(source_path: str) -> dict[str, Any]:
-    """Generate automated source data analysis
-
-    Args:
-        source_path: Path to source CSV file
-
-    Returns:
-        Dictionary with analysis results
-    """
-    source_file = Path(source_path)
-    if not source_file.exists():
-        msg = f"Source file not found: {source_path}"
-        raise FileNotFoundError(msg)
-
+def _analyze_csv_file(source_file: Path) -> dict[str, Any]:
+    """Analyze CSV file content."""
     encoding = detect_file_encoding(str(source_file))
     delimiter = detect_delimiter(str(source_file), encoding)
 
@@ -268,6 +257,115 @@ def generate_source_analysis(source_path: str) -> dict[str, Any]:
         "data_types": data_types,
         "issues": issues,
     }
+
+
+def _analyze_json_file(source_file: Path) -> dict[str, Any]:
+    """Analyze JSON or NDJSON file content."""
+    encoding = detect_file_encoding(str(source_file))
+    issues = []
+
+    # Try to determine if it's NDJSON or standard JSON
+    is_ndjson = False
+    data_objects = []
+    total_rows = 0
+
+    try:
+        with source_file.open(encoding=encoding) as f:
+            first_char = f.read(1).strip()
+            f.seek(0)
+
+            if first_char == "[":
+                # Standard JSON array
+                try:
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        data_objects = data[:10]  # Sample first 10
+                        total_rows = len(data)
+                    else:
+                        issues.append("JSON root is not a list")
+                except json.JSONDecodeError:
+                    issues.append("Invalid JSON format")
+            else:
+                # Assume NDJSON
+                is_ndjson = True
+                for i, line in enumerate(f):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    if i < 10:
+                        try:
+                            data_objects.append(json.loads(line))
+                        except json.JSONDecodeError:
+                            issues.append(f"Invalid JSON on line {i + 1}")
+                    total_rows += 1
+
+    except Exception as e:
+        issues.append(f"Error reading file: {str(e)}")
+
+    if not data_objects:
+        if not issues:
+            issues.append("File is empty or contains no valid objects")
+        return {
+            "file_type": "ndjson" if is_ndjson else "json",
+            "encoding": encoding,
+            "total_rows": 0,
+            "sample_fields": [],
+            "data_types": [],
+            "issues": issues,
+        }
+
+    # Extract fields from all sampled objects to get a complete schema
+    all_fields: set[str] = set()
+    for obj in data_objects:
+        if isinstance(obj, dict):
+            all_fields.update(obj.keys())
+
+    sample_fields = sorted(all_fields)
+
+    # Convert objects to rows for type detection
+    data_rows = []
+    for obj in data_objects:
+        if isinstance(obj, dict):
+            row = [str(obj.get(field, "")) for field in sample_fields]
+            data_rows.append(row)
+
+    # Detect data types
+    num_columns = len(sample_fields)
+    data_types = detect_data_types_from_multiple_rows(data_rows, num_columns) if data_rows else []
+
+    return {
+        "file_type": "ndjson" if is_ndjson else "json",
+        "encoding": encoding,
+        "has_header": False,  # JSON doesn't have a header row like CSV
+        "total_rows": total_rows,
+        "sample_fields": sample_fields,
+        "sample_data": data_rows[:5],
+        "data_types": data_types,
+        "issues": issues,
+    }
+
+
+def generate_source_analysis(source_path: str) -> dict[str, Any]:
+    """Generate automated source data analysis
+
+    Args:
+        source_path: Path to source data file
+
+    Returns:
+        Dictionary with analysis results
+    """
+    source_file = Path(source_path)
+    if not source_file.exists():
+        msg = f"Source file not found: {source_path}"
+        raise FileNotFoundError(msg)
+
+    # Determine file type by extension
+    suffix = source_file.suffix.lower()
+    if suffix in [".json", ".jsonl", ".ndjson"]:
+        return _analyze_json_file(source_file)
+
+    # Default to CSV analysis
+    return _analyze_csv_file(source_file)
 
 
 def generate_source_contract(source_path: str, source_id: str, config: dict[str, Any] | None = None) -> SourceContract:
