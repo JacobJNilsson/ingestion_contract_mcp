@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from mcp_server.models import (
+from core.models import (
     DestinationContract,
     DestinationSchema,
     ExecutionPlan,

@@ -5,7 +5,7 @@ from pathlib import Path
 import typer
 
 from cli.output import error_message, output_contract
-from mcp_server.contract_generator import generate_destination_contract
+from core.contract_generator import generate_destination_contract
 
 app = typer.Typer(help="Generate destination contracts")
 

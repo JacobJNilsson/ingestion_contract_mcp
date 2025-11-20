@@ -10,11 +10,10 @@ from pathlib import Path
 # Add parent directory to path for imports when running as script
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from mcp_server.handlers import ContractHandler
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
-
-from mcp_server.contract_handler import ContractHandler
 
 # Initialize MCP server
 app: Server = Server("ingestion-contract-generator")

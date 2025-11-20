@@ -7,7 +7,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from cli.commands.source import app
-from mcp_server.contract_generator import generate_source_analysis
+from core.contract_generator import generate_source_analysis
 
 runner = CliRunner()
 

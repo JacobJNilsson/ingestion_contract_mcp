@@ -6,7 +6,7 @@ import typer
 from pydantic import ValidationError
 
 from cli.output import error_message, success_message
-from mcp_server.models import DestinationContract, SourceContract, TransformationContract
+from core.models import DestinationContract, SourceContract, TransformationContract
 
 
 def validate_contract_file(contract_path: Path) -> bool:

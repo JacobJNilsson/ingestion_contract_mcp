@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from mcp_server.models import (
+from core.models import (
     DestinationContract,
     DestinationSchema,
     ExecutionPlan,
@@ -388,7 +388,7 @@ def generate_source_contract(source_path: str, source_id: str, config: dict[str,
         encoding=source_analysis.get("encoding", "utf-8"),
         delimiter=source_analysis.get("delimiter"),
         has_header=source_analysis.get("has_header", True),
-        data_schema=SourceSchema(
+        schema=SourceSchema(
             fields=source_analysis.get("sample_fields", []),
             data_types=source_analysis.get("data_types", []),
         ),
@@ -429,7 +429,7 @@ def generate_destination_contract(
         if not database_type:
             raise ValueError("database_type is required when connection_string is provided")
 
-        from mcp_server.database_analyzer import inspect_table_schema
+        from core.database_analyzer import inspect_table_schema
 
         try:
             db_schema = inspect_table_schema(
@@ -460,7 +460,7 @@ def generate_destination_contract(
 
     return DestinationContract(
         destination_id=destination_id,
-        data_schema=dest_schema,
+        schema=dest_schema,
         metadata=config or {},
     )
 

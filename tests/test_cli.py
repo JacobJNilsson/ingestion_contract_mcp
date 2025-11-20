@@ -6,7 +6,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from cli.main import app
-from mcp_server.models import DestinationContract, SourceContract
+from core.models import DestinationContract, SourceContract
 
 runner = CliRunner()
 

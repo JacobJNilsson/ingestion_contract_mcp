@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from mcp_server.contract_handler import ContractHandler, load_contract, save_contract, validate_contract
-from mcp_server.models import DestinationContract, SourceContract, TransformationContract
+from core.models import DestinationContract, SourceContract, TransformationContract
+from mcp_server.handlers import ContractHandler, load_contract, save_contract, validate_contract
 
 
 class TestContractFileOperations:
@@ -89,7 +89,7 @@ class TestContractValidation:
         """Test that Pydantic catches invalid field types"""
         from pydantic import ValidationError
 
-        from mcp_server.models import QualityMetrics, SourceSchema
+        from core.models import QualityMetrics, SourceSchema
 
         # Invalid type for total_rows (should be int >= 0)
         with pytest.raises(ValidationError):

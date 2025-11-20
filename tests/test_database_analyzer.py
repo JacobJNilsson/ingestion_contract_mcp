@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from mcp_server.database_analyzer import (
+from core.database_analyzer import (
     calculate_load_order,
     detect_foreign_keys,
     generate_database_multi_source_contracts,
@@ -15,7 +15,7 @@ from mcp_server.database_analyzer import (
     map_database_type_to_contract_type,
     sanitize_connection_string,
 )
-from mcp_server.models import SourceContract
+from core.models import SourceContract
 
 
 @pytest.fixture

@@ -9,7 +9,7 @@ from sqlalchemy import MetaData, Table, create_engine, inspect, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import DatabaseError, NoSuchTableError, OperationalError
 
-from mcp_server.models import QualityMetrics, SourceContract, SourceSchema
+from core.models import QualityMetrics, SourceContract, SourceSchema
 
 logger = logging.getLogger(__name__)
 

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from mcp_server.contract_generator import (
+from core.contract_generator import (
     analyze_numeric_format,
     detect_data_types,
     detect_delimiter,

@@ -9,7 +9,7 @@ These tests ensure proper handling of:
 
 from pathlib import Path
 
-from mcp_server.contract_generator import (
+from core.contract_generator import (
     detect_data_types,
     generate_source_analysis,
     generate_source_contract,
