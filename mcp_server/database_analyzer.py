@@ -236,6 +236,75 @@ def analyze_database_table(
         engine.dispose()
 
 
+def inspect_table_schema(
+    connection_string: str,
+    database_type: str,
+    table_name: str,
+    schema: str | None = None,
+) -> dict[str, Any]:
+    """Inspect a database table and return its schema for destination contracts.
+
+    Args:
+        connection_string: Database connection string
+        database_type: Database type (postgresql, mysql, sqlite)
+        table_name: Name of the table to inspect
+        schema: Database schema name (optional, defaults to 'public' for PostgreSQL)
+
+    Returns:
+        Dictionary containing fields, types, and constraints
+
+    Raises:
+        ValueError: If table is not found
+    """
+    engine = create_database_engine(connection_string, database_type)
+
+    try:
+        inspector = inspect(engine)
+
+        # For PostgreSQL, default to 'public' schema if not specified
+        if database_type == "postgresql" and schema is None:
+            schema = "public"
+
+        # Check if table exists
+        if not inspector.has_table(table_name, schema=schema):
+            raise ValueError(f"Table '{table_name}' not found in database")
+
+        # Get table columns
+        columns = inspector.get_columns(table_name, schema=schema)
+        pk_constraint = inspector.get_pk_constraint(table_name, schema=schema)
+
+        fields = []
+        types = []
+        constraints = {}
+
+        pk_columns = set(pk_constraint.get("constrained_columns", []))
+
+        for col in columns:
+            name = col["name"]
+            col_type = str(col["type"])
+
+            fields.append(name)
+            types.append(col_type)
+
+            col_constraints = []
+            if not col.get("nullable", True):
+                col_constraints.append("NOT NULL")
+            if name in pk_columns:
+                col_constraints.append("PRIMARY KEY")
+
+            if col_constraints:
+                constraints[name] = col_constraints
+
+        return {
+            "fields": fields,
+            "types": types,
+            "constraints": constraints,
+        }
+
+    finally:
+        engine.dispose()
+
+
 def analyze_database_query(
     connection_string: str,
     database_type: str,
