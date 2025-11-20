@@ -11,13 +11,13 @@ from core.contract_generator import (
     generate_source_contract,
     generate_transformation_contract,
 )
-from core.database_analyzer import (
+from core.models import Contract, DestinationContract, SourceContract, TransformationContract
+from core.sources.database import (
     generate_database_multi_source_contracts,
     generate_database_source_contract,
     list_database_tables,
     sanitize_connection_string,
 )
-from core.models import Contract, DestinationContract, SourceContract, TransformationContract
 
 
 def load_contract(contract_path: str) -> Contract | None:

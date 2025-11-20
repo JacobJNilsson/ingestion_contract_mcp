@@ -6,7 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from core.database_analyzer import (
+from core.models import SourceContract
+from core.sources.database import (
     calculate_load_order,
     detect_foreign_keys,
     generate_database_multi_source_contracts,
@@ -15,7 +16,6 @@ from core.database_analyzer import (
     map_database_type_to_contract_type,
     sanitize_connection_string,
 )
-from core.models import SourceContract
 
 
 @pytest.fixture

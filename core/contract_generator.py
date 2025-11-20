@@ -429,7 +429,7 @@ def generate_destination_contract(
         if not database_type:
             raise ValueError("database_type is required when connection_string is provided")
 
-        from core.database_analyzer import inspect_table_schema
+        from core.sources.database import inspect_table_schema
 
         try:
             db_schema = inspect_table_schema(
