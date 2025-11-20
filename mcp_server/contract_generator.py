@@ -405,6 +405,10 @@ def generate_destination_contract(
     destination_id: str,
     schema: dict[str, Any] | None = None,
     config: dict[str, Any] | None = None,
+    connection_string: str | None = None,
+    table_name: str | None = None,
+    database_type: str | None = None,
+    database_schema: str | None = None,
 ) -> DestinationContract:
     """Generate a destination contract describing a data destination
 
@@ -412,10 +416,38 @@ def generate_destination_contract(
         destination_id: Unique identifier for destination (e.g., 'dwh_transactions_table')
         schema: Schema definition with fields and types
         config: Optional configuration dictionary
+        connection_string: Database connection string (optional)
+        table_name: Database table name (optional)
+        database_type: Database type - postgresql, mysql, or sqlite (required if connection_string provided)
+        database_schema: Database schema name (optional, for databases that support schemas)
 
     Returns:
         Destination contract model
     """
+    # If database info is provided, inspect the table
+    if connection_string and table_name:
+        if not database_type:
+            raise ValueError("database_type is required when connection_string is provided")
+
+        from mcp_server.database_analyzer import inspect_table_schema
+
+        try:
+            db_schema = inspect_table_schema(
+                connection_string=connection_string,
+                database_type=database_type,
+                table_name=table_name,
+                schema=database_schema,
+            )
+            # Merge with provided schema if any (provided schema takes precedence)
+            if schema:
+                db_schema.update(schema)
+            schema = db_schema
+        except Exception as e:
+            # If inspection fails, we might still want to proceed if a schema was manually provided
+            # otherwise we re-raise
+            if not schema:
+                raise ValueError(f"Failed to inspect database table: {e}") from e
+
     # Parse schema if provided, otherwise use defaults
     if schema:
         dest_schema = DestinationSchema(
