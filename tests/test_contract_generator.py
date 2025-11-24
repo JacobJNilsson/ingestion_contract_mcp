@@ -5,14 +5,16 @@ from pathlib import Path
 import pytest
 
 from core.contract_generator import (
-    analyze_numeric_format,
-    detect_data_types,
-    detect_delimiter,
-    detect_file_encoding,
     generate_destination_contract,
     generate_source_analysis,
     generate_source_contract,
     generate_transformation_contract,
+)
+from core.sources.csv import detect_delimiter
+from core.sources.utils import (
+    analyze_numeric_format,
+    detect_data_types,
+    detect_file_encoding,
 )
 
 
