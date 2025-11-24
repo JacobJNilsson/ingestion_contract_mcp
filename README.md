@@ -84,6 +84,9 @@ uv run contract-gen source csv data/transactions.csv --id transactions --output 
 # Generate destination contract
 uv run contract-gen destination csv --id output_data --output contracts/destination.json --pretty
 
+# Generate API destination contract from OpenAPI schema
+uv run contract-gen destination api openapi.json /users --id users_api --method POST --pretty
+
 # Validate contracts
 uv run contract-gen validate contracts/source.json
 uv run contract-gen validate contracts/ --recursive
@@ -91,6 +94,7 @@ uv run contract-gen validate contracts/ --recursive
 # Get help
 uv run contract-gen --help
 uv run contract-gen source --help
+uv run contract-gen destination --help
 ```
 
 **Key features:**
