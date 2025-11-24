@@ -10,10 +10,10 @@ These tests ensure proper handling of:
 from pathlib import Path
 
 from core.contract_generator import (
-    detect_data_types,
     generate_source_analysis,
     generate_source_contract,
 )
+from core.sources.utils import detect_data_types
 
 
 class TestBOMHandling:
