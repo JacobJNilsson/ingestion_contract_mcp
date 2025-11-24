@@ -47,7 +47,7 @@ Map source to destination. Defines:
 - Enrichment rules (derived fields, lookups)
 - Execution configuration (batch size, error handling)
 
-See the [API documentation](mcp_server/README.md) for detailed usage and examples.
+See the [API documentation](core/README.md) for detailed usage and examples.
 
 ## Quick Start
 
@@ -146,7 +146,7 @@ All code is fully typed with Python 3.13+ type hints. CI runs automatically on p
 
 ## Documentation
 
-- **[MCP Server API](mcp_server/README.md)** - Detailed tool documentation
+- **[MCP Server API](core/README.md)** - Detailed tool documentation
 - **[Project Architecture](.cursor/rules/project.mdc)** - Architecture decisions and conventions
 - **[Git Workflow](.cursor/rules/git.mdc)** - Commit guidelines and workflow
 - **[Python Guidelines](.cursor/rules/python.mdc)** - Coding standards
