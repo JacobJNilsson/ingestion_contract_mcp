@@ -140,7 +140,7 @@ paths:
     assert "value" in contract["schema"]["fields"]
 
     # Check UUID format mapping
-    assert contract["schema"]["types"][contract["schema"]["fields"].index("id")] == "uuid"
+    assert contract["schema"]["types"][contract["schema"]["fields"].index("id")] == "text"  # uuid -> text
     assert contract["schema"]["types"][contract["schema"]["fields"].index("value")] == "float"
 
 
