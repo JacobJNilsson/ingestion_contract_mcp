@@ -110,7 +110,11 @@ class ContractHandler:
             return json.dumps({"error": "Source file not found", "path": source_path}, indent=2)
 
         try:
-            contract = generate_source_contract(str(source_full_path), source_id, config)
+            contract = generate_source_contract(
+                source_id=source_id,
+                source_path=str(source_full_path),
+                config=config,
+            )
             return contract.model_dump_json(indent=2, exclude_none=False, by_alias=True)
         except (ValueError, OSError, ValidationError) as e:
             return json.dumps({"error": f"Failed to generate source contract: {e!s}"}, indent=2)

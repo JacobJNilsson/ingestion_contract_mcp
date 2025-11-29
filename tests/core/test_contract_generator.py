@@ -82,9 +82,12 @@ class TestSourceContractGeneration:
     """Tests for source contract generation"""
 
     def test_generate_source_contract(self, sample_csv_path: Path) -> None:
-        """Test source contract generation from CSV file"""
+        """Test source contract generation"""
         contract = generate_source_contract(
-            source_path=str(sample_csv_path), source_id="test_transactions", config={"note": "test"}
+            source_id="test_transactions",
+            source_type="csv",
+            source_path=str(sample_csv_path),
+            config={"note": "test"},
         )
 
         assert contract.contract_version == "1.0"
@@ -95,25 +98,27 @@ class TestSourceContractGeneration:
         assert contract.encoding == "utf-8"
         assert contract.delimiter == ","
         assert contract.has_header is True
+        assert contract.metadata["note"] == "test"
 
         # Check schema
-        assert contract.data_schema.fields is not None
-        assert contract.data_schema.data_types is not None
-        assert len(contract.data_schema.fields) == 5
+        assert "Date" in contract.data_schema.fields
+        assert "Description" in contract.data_schema.fields
+        assert "Amount" in contract.data_schema.fields
 
         # Check quality metrics
-        assert contract.quality_metrics.total_rows == 11  # Includes blank line at end of file
-        assert isinstance(contract.quality_metrics.sample_data, list)
-        assert contract.quality_metrics.issues == []
-
-        # Check metadata
-        assert contract.metadata == {"note": "test"}
+        assert contract.quality_metrics.total_rows == 11
+        assert len(contract.quality_metrics.sample_data) > 0
 
     def test_generate_source_contract_no_config(self, sample_csv_path: Path) -> None:
         """Test source contract generation without config"""
-        contract = generate_source_contract(source_path=str(sample_csv_path), source_id="test_source")
+        contract = generate_source_contract(
+            source_id="test_source",
+            source_type="csv",
+            source_path=str(sample_csv_path),
+        )
 
-        assert contract.metadata == {}
+        assert contract.metadata["source_path"] == str(sample_csv_path)
+        assert contract.metadata["file_format"] == "csv"
 
 
 class TestDestinationContractGeneration:

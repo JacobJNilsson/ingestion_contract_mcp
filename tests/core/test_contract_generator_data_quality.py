@@ -37,7 +37,11 @@ class TestBOMHandling:
         csv_file = tmp_path / "bom_contract.csv"
         csv_file.write_text(csv_content, encoding="utf-8")
 
-        contract = generate_source_contract(str(csv_file), "test_bom")
+        contract = generate_source_contract(
+            source_id="test_bom",
+            source_type="csv",
+            source_path=str(csv_file),
+        )
 
         # Check that BOM is not in the schema fields
         assert contract.data_schema.fields[0] == "Datum"
@@ -150,7 +154,7 @@ class TestDateFormatDetection:
 
 
 class TestAvanzaRealDataIssues:
-    """Test with actual Avanza data that revealed the issues"""
+    """Tests for real-world issues encountered with Avanza data"""
 
     def test_avanza_csv_structure(self, tmp_path: Path) -> None:
         """Avanza CSV should be properly analyzed"""
@@ -164,7 +168,11 @@ class TestAvanzaRealDataIssues:
         csv_file = tmp_path / "avanza.csv"
         csv_file.write_text(csv_content, encoding="utf-8")
 
-        contract = generate_source_contract(str(csv_file), "avanza_transactions")
+        contract = generate_source_contract(
+            source_id="avanza_transactions",
+            source_type="csv",
+            source_path=str(csv_file),
+        )
 
         # Test BOM is stripped
         assert contract.data_schema.fields[0] == "Datum"
