@@ -219,3 +219,66 @@ def _map_json_type_to_contract_type(json_type: str, format_type: str | None = No
     }
 
     return type_mapping.get(json_type, "text")
+
+
+def extract_endpoint_list(
+    openapi_spec: dict[str, Any],
+    with_fields: bool = False,
+    method: str | None = None,
+) -> list[dict[str, Any]]:
+    """List API endpoints with optional field details.
+
+    Args:
+        openapi_spec: Parsed OpenAPI specification
+        with_fields: Whether to include field details
+        method: Filter by HTTP method (optional)
+
+    Returns:
+        List of endpoint details
+    """
+    paths = openapi_spec.get("paths", {})
+    results = []
+
+    if method:
+        method = method.upper()
+
+    for path, path_item in paths.items():
+        if not path.startswith("/"):
+            continue
+
+        for op_method, operation in path_item.items():
+            if op_method.lower() in ["parameters", "$ref", "summary", "description"]:
+                continue
+
+            op_method_upper = op_method.upper()
+
+            if method and op_method_upper != method:
+                continue
+
+            endpoint_info: dict[str, Any] = {
+                "method": op_method_upper,
+                "path": path,
+                "summary": operation.get("summary", ""),
+            }
+
+            if with_fields:
+                # Reuse extract_endpoint_schema logic partly or simplify
+                try:
+                    # We can use the existing function but we need to handle errors gracefully
+                    # and we don't want to fail if one endpoint is bad.
+                    # Also extract_endpoint_schema does full extraction.
+                    schema = extract_endpoint_schema(openapi_spec, path, op_method_upper)
+                    endpoint_info["fields"] = schema["fields"]
+                    endpoint_info["types"] = schema["types"]
+                    endpoint_info["constraints"] = schema["constraints"]
+                except Exception:
+                    endpoint_info["error"] = "Failed to extract schema"
+
+            # Count fields if not detailed
+            if not with_fields:
+                # Estimate count? Or leave it. The requirement says "names and basic info".
+                pass
+
+            results.append(endpoint_info)
+
+    return results

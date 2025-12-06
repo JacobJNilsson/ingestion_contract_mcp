@@ -50,6 +50,7 @@ def test_destination_api_cli_with_openapi_schema(tmp_path: Path) -> None:
         app,
         [
             "api",
+            "generate",
             str(schema_file),
             "/users",
             "--id",
@@ -122,6 +123,7 @@ paths:
         app,
         [
             "api",
+            "generate",
             str(schema_file),
             "/data",
             "--id",
@@ -159,6 +161,7 @@ def test_destination_api_cli_endpoint_not_found(tmp_path: Path) -> None:
         app,
         [
             "api",
+            "generate",
             str(schema_file),
             "/missing",
             "--id",
@@ -185,6 +188,7 @@ def test_destination_api_cli_method_not_found(tmp_path: Path) -> None:
         app,
         [
             "api",
+            "generate",
             str(schema_file),
             "/users",
             "--id",
@@ -196,3 +200,51 @@ def test_destination_api_cli_method_not_found(tmp_path: Path) -> None:
 
     assert result.exit_code == 1
     assert "not found for endpoint" in result.stderr
+
+
+def test_destination_api_cli_list(tmp_path: Path) -> None:
+    """Test listing available endpoints."""
+    openapi_schema = {
+        "openapi": "3.0.0",
+        "info": {"title": "API", "version": "1.0.0"},
+        "paths": {
+            "/users": {"get": {}, "post": {}},
+            "/products": {"get": {}},
+        },
+    }
+
+    schema_file = tmp_path / "openapi.json"
+    schema_file.write_text(json.dumps(openapi_schema))
+
+    # Test basic list
+    result = runner.invoke(
+        app,
+        ["api", "list", str(schema_file)],
+    )
+
+    assert result.exit_code == 0, f"Command failed: {result.stderr}"
+    assert "/users" in result.stdout
+    assert "GET" in result.stdout
+    assert "POST" in result.stdout
+    assert "/products" in result.stdout
+
+    # Test filter by method
+    result = runner.invoke(
+        app,
+        ["api", "list", str(schema_file), "--method", "POST"],
+    )
+
+    assert result.exit_code == 0
+    assert "POST" in result.stdout
+    assert "/users" in result.stdout
+    assert "/products" not in result.stdout
+
+    # Test JSON output
+    result = runner.invoke(
+        app,
+        ["api", "list", str(schema_file), "--format", "json"],
+    )
+
+    assert result.exit_code == 0
+    output = json.loads(result.stdout)
+    assert len(output) == 3

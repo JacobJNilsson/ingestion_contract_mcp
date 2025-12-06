@@ -95,8 +95,13 @@ def destination_database(
         raise typer.Exit(1) from e
 
 
-@app.command("api")
-def destination_api(
+# Create API group
+api_app = typer.Typer(help="Generate destination contracts from API schemas")
+app.add_typer(api_app, name="api")
+
+
+@api_app.command("generate")
+def generate_api_contract(
     schema_file: Path = typer.Argument(..., exists=True, help="OpenAPI/Swagger schema file (JSON or YAML)"),
     endpoint: str = typer.Argument(..., help="API endpoint path (e.g. /users, /data)"),
     destination_id: str = typer.Option(..., "--id", help="Unique identifier for this destination"),
@@ -110,7 +115,7 @@ def destination_api(
     """Generate destination contract from an OpenAPI/Swagger schema file.
 
     Example:
-        contract-gen destination api openapi.json /users --id users_api --method POST --pretty
+        contract-gen destination api generate openapi.json /users --id users_api --method POST --pretty
     """
     try:
         # Load config for defaults
@@ -141,4 +146,63 @@ def destination_api(
         raise typer.Exit(1) from e
     except Exception as e:
         error_message(f"Failed to generate destination contract: {e}")
+        raise typer.Exit(1) from e
+
+
+@api_app.command("list")
+def list_api_endpoints(
+    schema_file: Path = typer.Argument(..., exists=True, help="OpenAPI/Swagger schema file (JSON or YAML)"),
+    with_fields: bool = typer.Option(False, "--with-fields", help="Include request body field details"),
+    method: str | None = typer.Option(None, "--method", help="Filter by HTTP method"),
+    output_format: str = typer.Option("text", "--format", "-f", help="Output format: text or json"),
+) -> None:
+    """List available endpoints in an OpenAPI specification.
+
+    Example:
+        contract-gen destination api list openapi.yaml --method POST
+    """
+    try:
+        import json
+
+        import yaml
+
+        from core.sources.api.introspection import extract_endpoint_list
+
+        # Load schema
+        with open(schema_file) as f:
+            spec = yaml.safe_load(f) if str(schema_file).endswith((".yaml", ".yml")) else json.load(f)
+
+        endpoints = extract_endpoint_list(spec, with_fields=with_fields, method=method)
+
+        if output_format == "json":
+            typer.echo(json.dumps(endpoints, indent=2))
+        else:
+            if not endpoints:
+                typer.echo("No endpoints found.")
+                return
+
+            typer.echo(f"Endpoints ({len(endpoints)} total):")
+            for ep in endpoints:
+                typer.echo(f"  {ep['method']:<6} {ep['path']}")
+                if with_fields and "fields" in ep:
+                    fields = ep.get("fields", [])
+                    constraints = ep.get("constraints", {})
+
+                    if fields:
+                        typer.echo("    Fields:")
+                        for field in fields:
+                            req = " (Required)" if "REQUIRED" in constraints.get(field, []) else ""
+                            typer.echo(f"      - {field}{req}")
+                    else:
+                        typer.echo("    (No fields)")
+                    typer.echo("")
+                elif with_fields:
+                    if "error" in ep:
+                        typer.echo(f"    Error: {ep['error']}")
+                    else:
+                        typer.echo("    (No fields info)")
+                    typer.echo("")
+
+    except Exception as e:
+        error_message(f"Failed to list endpoints: {e}")
         raise typer.Exit(1) from e

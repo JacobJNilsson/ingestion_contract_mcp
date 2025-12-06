@@ -282,3 +282,64 @@ def analyze_database_query(
 
     finally:
         engine.dispose()
+
+
+def extract_table_list(
+    connection_string: str,
+    database_type: str,
+    schema: str | None = None,
+    with_fields: bool = False,
+) -> list[dict[str, Any]]:
+    """List tables in the database with optional field details.
+
+    Args:
+        connection_string: Database connection string
+        database_type: Database type (postgresql, mysql, sqlite)
+        schema: Database schema name (optional)
+        with_fields: Whether to include column details
+
+    Returns:
+        List of dictionaries containing table 'name' and optional 'columns'
+    """
+    engine = create_database_engine(connection_string, database_type)
+
+    try:
+        inspector = inspect(engine)
+
+        if database_type == "postgresql" and schema is None:
+            schema = "public"
+
+        table_names = inspector.get_table_names(schema=schema)
+        results = []
+
+        for table_name in table_names:
+            table_info: dict[str, Any] = {"name": table_name}
+
+            if with_fields:
+                try:
+                    columns = inspector.get_columns(table_name, schema=schema)
+                    table_info["columns"] = [
+                        {
+                            "name": col["name"],
+                            "type": str(col["type"]),
+                            "nullable": col.get("nullable", True),
+                        }
+                        for col in columns
+                    ]
+                    table_info["column_count"] = len(columns)
+                except Exception:
+                    table_info["error"] = "Failed to inspect columns"
+                    table_info["column_count"] = 0
+            else:
+                try:
+                    columns = inspector.get_columns(table_name, schema=schema)
+                    table_info["column_count"] = len(columns)
+                except Exception:
+                    table_info["column_count"] = 0
+
+            results.append(table_info)
+
+        return results
+
+    finally:
+        engine.dispose()
