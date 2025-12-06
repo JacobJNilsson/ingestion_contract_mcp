@@ -85,48 +85,6 @@ Pydantic models for type safety, follows a stateless design returning JSON
 contracts, and includes comprehensive test coverage for data quality edge cases.
 ```
 
-## Git Commands - When to Use
-
-### Staging (`git add`)
-
-- You MAY run `git add` when preparing files for review
-- Ask first if unsure whether files should be staged
-
-### Committing (`git commit`)
-
-- **NEVER** run without explicit user request
-- If user asks to "write a commit message", provide the text only
-
-### Pushing (`git push`)
-
-- **NEVER** run without explicit user request
-- Always confirm remote and branch before pushing if asked
-
-### Destructive Operations
-
-- **NEVER** run `git push --force` to main/master
-- **NEVER** run `git reset --hard` without explicit request
-- **NEVER** skip hooks (`--no-verify`, `--no-gpg-sign`)
-- Warn the user if they request destructive operations
-
-## Branch Naming
-
-If suggesting branch names, use this format:
-
-- `feature/description-of-feature`
-- `fix/description-of-fix`
-- `refactor/description-of-refactor`
-- `docs/description-of-docs-change`
-
-Use kebab-case for descriptions.
-
 ## Fixing misstakes in the same PR
 
 Do not create a new fix commit for something that has not yet been merged to main, instead create a fixup commit and let the user rebase later.
-
-## General Principles
-
-1. **User has final control**: Always let the user review and approve before writing to git
-2. **Be explicit**: When you provide a commit message, clearly state "Here's the commit message:" so it's obvious you're not committing
-3. **Ask if uncertain**: If unsure whether to stage/commit/push, ask the user first
-4. **Respect workflow**: Some users have specific git workflows (squash, rebase, etc.) - don't assume
