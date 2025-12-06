@@ -6,8 +6,11 @@ import typer
 
 from cli.output import error_message, output_contract
 from core.contract_generator import generate_source_contract
+from core.sources.database.introspection import extract_table_list
 
 app = typer.Typer(help="Generate source contracts from data sources")
+database_app = typer.Typer(help="Generate source contracts from databases")
+app.add_typer(database_app, name="database")
 
 
 @app.command("csv")
@@ -126,4 +129,57 @@ def source_json(
         raise typer.Exit(1) from e
     except Exception as e:
         error_message(f"Failed to generate source contract: {e}")
+        raise typer.Exit(1) from e
+
+
+@database_app.command("list")
+def source_database_list(
+    connection_string: str = typer.Argument(
+        ..., help="Database connection string (e.g. postgresql://user:pass@host/db)"
+    ),
+    database_type: str = typer.Option(..., "--type", help="Database type: postgresql, mysql, or sqlite"),
+    schema: str | None = typer.Option(
+        None, "--schema", help="Database schema name (optional, defaults to 'public' for PostgreSQL)"
+    ),
+    with_fields: bool = typer.Option(False, "--with-fields", help="Include column details"),
+    output_format: str = typer.Option("text", "--format", "-f", help="Output format: text or json"),
+) -> None:
+    """List tables in a database.
+
+    Example:
+        contract-gen source database list postgresql://user:pass@host/db --type postgresql
+    """
+    try:
+        tables = extract_table_list(
+            connection_string=connection_string,
+            database_type=database_type,
+            schema=schema,
+            with_fields=with_fields,
+        )
+
+        if output_format == "json":
+            import json
+
+            typer.echo(json.dumps(tables, indent=2))
+        else:
+            if not tables:
+                typer.echo("No tables found.")
+                return
+
+            schema_msg = f" in schema '{schema}'" if schema else ""
+            typer.echo(f"Tables{schema_msg} ({len(tables)} total):")
+
+            for table in tables:
+                col_count = table.get("column_count", 0)
+                typer.echo(f"  {table['name']} ({col_count} columns)")
+
+                if with_fields and "columns" in table:
+                    for col in table["columns"]:
+                        pk = ", PRIMARY KEY" if False else ""  # Logic for PK display if available
+                        nullable = ", NOT NULL" if not col["nullable"] else ""
+                        typer.echo(f"    - {col['name']} ({col['type']}{nullable}{pk})")
+                    typer.echo("")
+
+    except Exception as e:
+        error_message(f"Failed to list tables: {e}")
         raise typer.Exit(1) from e
