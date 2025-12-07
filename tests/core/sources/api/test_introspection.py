@@ -1,7 +1,7 @@
 from core.sources.api.introspection import extract_endpoint_list
 
 
-def test_extract_endpoint_list():
+def test_extract_endpoint_list() -> None:
     spec = {
         "paths": {
             "/users": {
@@ -9,19 +9,11 @@ def test_extract_endpoint_list():
                 "post": {
                     "summary": "Create user",
                     "requestBody": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "properties": {"name": {"type": "string"}}
-                                }
-                            }
-                        }
+                        "content": {"application/json": {"schema": {"properties": {"name": {"type": "string"}}}}}
                     },
                 },
             },
-            "/users/{id}": {
-                "get": {"summary": "Get user"}
-            },
+            "/users/{id}": {"get": {"summary": "Get user"}},
         }
     }
 
