@@ -1,3 +1,4 @@
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 from core.sources.database.introspection import extract_table_list
@@ -5,7 +6,7 @@ from core.sources.database.introspection import extract_table_list
 
 @patch("core.sources.database.introspection.create_database_engine")
 @patch("core.sources.database.introspection.inspect")
-def test_extract_table_list(mock_inspect, mock_create_engine):
+def test_extract_table_list(mock_inspect: MagicMock, mock_create_engine: MagicMock) -> None:
     mock_engine = MagicMock()
     mock_create_engine.return_value = mock_engine
 
@@ -15,7 +16,7 @@ def test_extract_table_list(mock_inspect, mock_create_engine):
     mock_inspector.get_table_names.return_value = ["table1", "table2"]
 
     # Mock columns
-    def get_columns_side_effect(table_name, schema=None):
+    def get_columns_side_effect(table_name: str, schema: str | None = None) -> list[dict[str, Any]]:
         if table_name == "table1":
             return [{"name": "id", "type": "INTEGER", "nullable": False}]
         return [{"name": "name", "type": "VARCHAR", "nullable": True}]
